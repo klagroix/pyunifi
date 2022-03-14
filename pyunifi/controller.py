@@ -861,3 +861,136 @@ class Controller:  # pylint: disable=R0902,R0904
         cmd = "delete-voucher"
         params = {"_id": voucher_id}
         self._run_command(cmd, mgr="hotspot", params=params)
+
+    def dump_switch_port_profile(self, target_mac, port_idx):
+        """Method for debugging port settings. Logs port settings to console
+
+        :param target_mac: MAC address of the Switch.
+        :type target_mac: str
+        :param port_idx: Port ID to target
+        :type port_idx: int
+        :returns: None
+        """
+        # TODO: Switch operations should most likely happen in a
+        # different Class, Switch.
+        self.log.debug(
+            "dump_switch_port_settings(%s, %s)", target_mac, port_idx
+            )
+        device_stat = self.get_device_stat(target_mac)
+        overrides = device_stat.get("port_overrides")
+        
+        if overrides:
+            for override in overrides:
+                if override["port_idx"] == port_idx:
+                    self.log.info("Found Override: %s" % (override))
+                    break
+        
+        # Retrieve portconf
+        portconf_id = None
+        for port in device_stat["port_table"]:
+            if port["port_idx"] == port_idx:
+                portconf_id = port["portconf_id"]
+                self.log.info("Found Port: %s" % (port))
+                break
+        if portconf_id is None:
+            raise APIError(
+                "Port ID %s not found in port_table" % str(port_idx)
+                )
+                
+        return None
+
+    def _switch_port_conf(self, target_mac, port_idx, portconf_id):
+        """Helper method to set the given portconf for the port/switch.
+
+        :param target_mac: MAC address of the Switch.
+        :type target_mac: str
+        :param port_idx: Port ID to target
+        :type port_idx: int
+        :param portconf_id: Port Conf ID to set.
+        :type portconf_id: str
+        :returns: { 'port_overrides': [ { 'port_idx': int(),
+            'portconf': str, 'poe_mode': str, 'name': str } ] }
+        :rtype: dict( list( dict() ) )
+        """
+        # TODO: Switch operations should most likely happen in a
+        # different Class, Switch.
+        self.log.debug(
+            "_switch_port_power(%s, %s, %s)", target_mac, port_idx, portconf_id
+            )
+        device_stat = self.get_device_stat(target_mac)
+        device_id = device_stat.get("_id")
+        overrides = device_stat.get("port_overrides")
+        found = False
+        if overrides:
+            for override in overrides:
+                if override["port_idx"] == port_idx:
+                    # Override already exists, update..
+                    override["portconf_id"] = portconf_id
+                    found = True
+                    break
+        if not found:
+            # Retrieve portconf
+            curr_portconf_id = None
+            for port in device_stat["port_table"]:
+                if port["port_idx"] == port_idx:
+                    curr_portconf_id = port["portconf_id"]
+                    break
+            if curr_portconf_id is None:
+                raise APIError(
+                    "Port ID %s not found in port_table" % str(port_idx)
+                    )
+            overrides.append(
+                {
+                    "port_idx": port_idx,
+                    "portconf_id": portconf_id
+                    }
+            )
+        # We return the device_id as it's needed by the parent method
+        return {"port_overrides": overrides, "device_id": device_id}
+
+    def set_port_conf(self, target_mac, port_idx, portconf_id):
+        """Sets a particular port configuration id for a device
+
+        :param target_mac: MAC address of the Switch.
+        :type target_mac: str
+        
+        :param port_idx: Port ID to target
+        :type port_idx: int
+
+        :param portconf_id: Port Configuration ID to set
+        :type portconf_id: int
+
+        :returns: None
+        """
+        params = self._switch_port_conf(target_mac, port_idx, portconf_id)
+        device_id = params["device_id"]
+        del params["device_id"]
+        #self.log.info("I want to set: %s" % (params))
+        #return None
+        return self._api_update("rest/device/" + device_id, params)
+
+
+    def get_device_mac_by_ip(self, ip):
+        """Gets the device
+
+        :param target_mac: MAC address of the Switch.
+        :type target_mac: str
+        
+        :param port_idx: Port ID to target
+        :type port_idx: int
+
+        :param portconf_id: Port Configuration ID to set
+        :type portconf_id: int
+
+        :returns: macaddress
+        :rtype: str
+        """
+        for ap in self.get_aps():
+            device_ip=ap['ip']
+            
+            if 'lan_ip' in ap:
+                device_ip=ap['lan_ip']
+
+            if ip == device_ip:
+                return ap['mac']
+        return None
