@@ -882,7 +882,7 @@ class Controller:  # pylint: disable=R0902,R0904
         if overrides:
             for override in overrides:
                 if override["port_idx"] == port_idx:
-                    self.log.info("Found Override: %s" % (override))
+                    self.log.debug("Found Override: %s" % (override))
                     break
         
         # Retrieve portconf
@@ -890,13 +890,14 @@ class Controller:  # pylint: disable=R0902,R0904
         for port in device_stat["port_table"]:
             if port["port_idx"] == port_idx:
                 portconf_id = port["portconf_id"]
-                self.log.info("Found Port: %s" % (port))
+                self.log.debug("Found Port: %s" % (port))
                 break
         if portconf_id is None:
             raise APIError(
                 "Port ID %s not found in port_table" % str(port_idx)
                 )
                 
+        self.log.info("Port Configuration ID for Port {port} is: {portconf_id}".format(port=port_idx, portconf_id=portconf_id))
         return None
 
     def _switch_port_conf(self, target_mac, port_idx, portconf_id):
